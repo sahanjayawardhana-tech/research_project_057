@@ -1,0 +1,6 @@
+{
+  "ae_weight": 0.1,
+  "svm_weight": 0.9,
+  "context_weight": 0.0,
+  "optimal_threshold": 0.31
+}

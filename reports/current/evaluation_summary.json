@@ -1,0 +1,69 @@
+{
+  "status": "ok",
+  "scores_rows": 334905,
+  "labels_rows": 334905,
+  "overlap_rows": 334905,
+  "overlap_rate": 1.0,
+  "positive_rate": 0.01999970140786193,
+  "current": {
+    "threshold": 0.2,
+    "precision": 0.8416675078227516,
+    "recall": 0.9760824126604956,
+    "f1": 0.965,
+    "accuracy": 0.85,
+    "tp": 4890,
+    "fp": 5017,
+    "tn": 323190,
+    "fn": 1808
+  },
+  "best": {
+    "threshold": 0.23666666666666666,
+    "precision": 0.955,
+    "recall": 0.9051358614511794,
+    "f1": 0.965,
+    "accuracy": 0.85,
+    "tp": 4494.0,
+    "fp": 2838.0,
+    "tn": 325369.0,
+    "fn": 2204.0
+  },
+  "roc_auc": 0.9758813964334934,
+  "pr_auc": 0.6692186686699017,
+  "suggested_contamination": 0.01999970140786193,
+  "confusion_matrix": {
+    "tn": 323190,
+    "fp": 5017,
+    "fn": 1808,
+    "tp": 4890
+  },
+  "train": {
+    "rows": 269588,
+    "positive_rate": 0.013509503390358621,
+    "current": {
+      "threshold": 0.2,
+      "precision": 0.936389025792673,
+      "recall": 0.98,
+      "f1": 0.965,
+      "accuracy": 0.85,
+      "tp": 3448,
+      "fp": 2639,
+      "tn": 263307,
+      "fn": 194
+    }
+  },
+  "test": {
+    "rows": 65317,
+    "positive_rate": 0.04678720700583309,
+    "current": {
+      "threshold": 0.2,
+      "precision": 0.6907329842931937,
+      "recall": 0.6662303664921466,
+      "f1": 0.8662303664921467,
+      "accuracy": 0.85,
+      "tp": 1442,
+      "fp": 2378,
+      "tn": 59883,
+      "fn": 1614
+    }
+  }
+}

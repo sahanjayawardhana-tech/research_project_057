@@ -1,0 +1,13 @@
+[
+  "total_events",
+  "unique_pcs",
+  "logon_count",
+  "after_hours_logon_count",
+  "usb_connect_count",
+  "after_hours_usb_connect_count",
+  "url_count",
+  "after_hours_url_count",
+  "unique_domains",
+  "work_duration_hours",
+  "context_score"
+]
