@@ -41,6 +41,8 @@ data/agent_ingest/
 data/raw/
 data/demo/
 data/processed/
+reports/current/
+models/current/
 
 # Notebook and editor metadata
 .DS_Store
