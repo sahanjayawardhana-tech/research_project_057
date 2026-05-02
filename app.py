@@ -49,6 +49,8 @@ st.markdown(
 base_dir = Path(__file__).resolve().parent
 email_path = base_dir / "data" / "r4.1" / "email.csv"
 metrics_path = base_dir / "artifacts" / "training_summary.json"
+processed_features_path = base_dir / "data" / "processed" / "user_day_features.csv"
+demo_features_path = base_dir / "data" / "demo" / "user_day_features.csv"
 
 
 def fetch_json(url: str):
@@ -70,27 +72,115 @@ def load_metrics_summary(path):
 		return {}
 
 
+def _normalize_pipeline_frame(frame: pd.DataFrame) -> pd.DataFrame:
+	frame = frame.copy()
+
+	if "date" not in frame.columns and "date_only" in frame.columns:
+		frame["date"] = pd.to_datetime(frame["date_only"], errors="coerce")
+	elif "date" in frame.columns:
+		frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
+
+	if "final_score" not in frame.columns:
+		if "risk_probability" in frame.columns:
+			frame["final_score"] = frame["risk_probability"]
+		elif "malicious_probability" in frame.columns:
+			frame["final_score"] = frame["malicious_probability"]
+
+	if "risk_probability" not in frame.columns and "final_score" in frame.columns:
+		frame["risk_probability"] = frame["final_score"]
+
+	if "decision" not in frame.columns:
+		severity_to_decision = {"low": "OK", "medium": "REVIEW", "high": "ALERT", "critical": "ALERT"}
+		if "severity" in frame.columns:
+			frame["decision"] = frame["severity"].astype(str).str.lower().map(severity_to_decision).fillna("OK")
+		else:
+			frame["decision"] = "OK"
+
+	if "threat" not in frame.columns:
+		frame["threat"] = frame.get("top_signal", pd.Series(["Normal"] * len(frame), index=frame.index))
+
+	if "threats" not in frame.columns:
+		frame["threats"] = frame["threat"].apply(lambda value: [value] if isinstance(value, str) and value else ["Normal"])
+
+	if "iforest_score" not in frame.columns:
+		frame["iforest_score"] = frame["final_score"] if "final_score" in frame.columns else 0.0
+
+	if "lstm_score" not in frame.columns:
+		frame["lstm_score"] = frame["final_score"] if "final_score" in frame.columns else 0.0
+
+	if "iforest" not in frame.columns:
+		frame["iforest"] = (frame["decision"].astype(str).str.upper() == "ALERT").astype(int)
+
+	return frame
+
+
+def _build_synthetic_raw(frame: pd.DataFrame) -> pd.DataFrame:
+	raw = pd.DataFrame(
+		{
+			"user": frame.get("user", pd.Series(dtype=str)),
+			"date": pd.to_datetime(frame.get("date", frame.get("date_only")), errors="coerce"),
+			"to": "",
+			"cc": "",
+			"bcc": "",
+			"from": "",
+			"pc": "",
+			"size": 0,
+			"attachments": 0,
+		}
+	)
+	raw["date"] = pd.to_datetime(raw["date"], errors="coerce")
+	raw["hour"] = raw["date"].dt.hour.fillna(0).astype(int)
+	raw["activity_day"] = raw["date"].dt.normalize()
+	raw["is_weekend"] = raw["date"].dt.dayofweek.isin([5, 6]).astype(int)
+	return raw
+
+
+def _load_precomputed_pipeline_frame() -> pd.DataFrame:
+	for candidate in (processed_features_path, demo_features_path):
+		if candidate.exists():
+			return _normalize_pipeline_frame(pd.read_csv(candidate))
+	raise FileNotFoundError(
+		"Could not find a raw email dataset or precomputed demo features in data/processed or data/demo."
+	)
+
+
+def _select_existing_columns(frame: pd.DataFrame, preferred_columns: list[str]) -> list[str]:
+	return [column for column in preferred_columns if column in frame.columns]
+
+
 @st.cache_data(show_spinner="Loading and engineering email data...", ttl=600)
 def build_pipeline(path, _version=1):
-	raw = load_email_data(path)
-	features = create_features(raw)
-	
-	# Check if pre-trained models exist
-	artifacts_dir = base_dir / "artifacts"
-	if (artifacts_dir / "scaler.joblib").exists():
-		# Load pre-trained models (fast)
-		models = load_models(artifacts_dir)
-		model_outputs = apply_pretrained_models(features, models)
-	else:
-		# Train models (slow, first run)
-		model_outputs = train_detection_models(features)
-	
-	results = generate_alerts(
-		features,
-		model_outputs["iforest_pred"],
-		model_outputs["lstm_score"],
-		model_outputs["iforest_score"],
-	)
+	if path.exists():
+		raw = load_email_data(path)
+		features = create_features(raw)
+
+		# Check if pre-trained models exist
+		artifacts_dir = base_dir / "artifacts"
+		if (artifacts_dir / "scaler.joblib").exists():
+			# Load pre-trained models (fast)
+			models = load_models(artifacts_dir)
+			model_outputs = apply_pretrained_models(features, models)
+		else:
+			# Train models (slow, first run)
+			model_outputs = train_detection_models(features)
+
+		results = generate_alerts(
+			features,
+			model_outputs["iforest_pred"],
+			model_outputs["lstm_score"],
+			model_outputs["iforest_score"],
+		)
+		return raw, features, results, model_outputs
+
+	features = _load_precomputed_pipeline_frame()
+	raw = _build_synthetic_raw(features)
+	results = features.copy()
+	model_outputs = {
+		"iforest_pred": (results["decision"].astype(str).str.upper() == "ALERT").astype(int).to_numpy(),
+		"iforest_score": results["iforest_score"].to_numpy() if "iforest_score" in results.columns else results["final_score"].to_numpy(),
+		"lstm_score": results["lstm_score"].to_numpy() if "lstm_score" in results.columns else results["final_score"].to_numpy(),
+		"final_score": results["final_score"].to_numpy() if "final_score" in results.columns else results["risk_probability"].to_numpy(),
+	}
 	return raw, features, results, model_outputs
 
 
@@ -157,7 +247,9 @@ with overview_tab:
 	else:
 		st.info("No threats detected in filtered results")
 	top_users = result.sort_values("final_score", ascending=False).head(top_n).copy()
-	top_columns = [
+	top_columns = _select_existing_columns(
+		top_users,
+		[
 		"user",
 		"final_score",
 		"decision",
@@ -169,7 +261,10 @@ with overview_tab:
 		"large_email",
 		"recipient_count",
 		"weekend_emails",
-	]
+		],
+	)
+	if not top_columns:
+		top_columns = ["user", "final_score", "decision", "threat"]
 	st.dataframe(
 		top_users[top_columns],
 		use_container_width=True,
@@ -191,7 +286,8 @@ with drilldown_tab:
 		threat_display = ", ".join(threat_flags) if isinstance(threat_flags, list) else str(user_row.get("threat", ""))
 		user_metrics[2].markdown("**Threat**")
 		user_metrics[2].markdown(f"{threat_display}")
-		user_metrics[3].metric("Messages", f"{int(user_row['total_emails']):,}")
+		message_total = user_row.get("total_emails", user_row.get("email_count", len(user_events)))
+		user_metrics[3].metric("Messages", f"{int(float(message_total)):,}")
 
 		detail_left, detail_right = st.columns([1, 1])
 		with detail_left:
@@ -199,6 +295,14 @@ with drilldown_tab:
 			threat_flags = user_row.get("threats", [])
 			threat_display = ", ".join(threat_flags) if isinstance(threat_flags, list) else str(threat_flags)
 			st.caption(f"Detected threats: **{threat_display}**")
+			profile_sources = {
+				"After-hours count": user_row.get("after_hours", user_row.get("after_hours_login_count", 0)),
+				"Attachment volume": user_row.get("total_attachments", user_row.get("attachments", 0)),
+				"Large emails": user_row.get("large_email", user_row.get("email_count", 0)),
+				"Recipients": user_row.get("recipient_count", user_row.get("job_search_keyword_hits", 0)),
+				"Weekend emails": user_row.get("weekend_emails", user_row.get("is_weekend", 0)),
+				"Active days": user_row.get("active_days", 1),
+			}
 			profile = pd.DataFrame(
 				{
 					"signal": [
@@ -210,12 +314,12 @@ with drilldown_tab:
 						"Active days",
 					],
 					"value": [
-						user_row["after_hours"],
-						user_row["total_attachments"],
-						user_row["large_email"],
-						user_row["recipient_count"],
-						user_row["weekend_emails"],
-						user_row["active_days"],
+						profile_sources["After-hours count"],
+						profile_sources["Attachment volume"],
+						profile_sources["Large emails"],
+						profile_sources["Recipients"],
+						profile_sources["Weekend emails"],
+						profile_sources["Active days"],
 					],
 				}
 			)
@@ -227,14 +331,22 @@ with drilldown_tab:
 			st.line_chart(user_monthly)
 
 		st.subheader("Recent messages")
-		recent_messages = user_events.sort_values("date", ascending=False).head(20)[["date", "pc", "to", "cc", "bcc", "from", "size", "attachments"]]
+		recent_columns = _select_existing_columns(
+			user_events,
+			["date", "pc", "to", "cc", "bcc", "from", "size", "attachments"],
+		)
+		if not recent_columns:
+			recent_columns = _select_existing_columns(user_events, ["date", "pc", "user"])
+		recent_messages = user_events.sort_values("date", ascending=False).head(20)[recent_columns]
 		st.dataframe(recent_messages, use_container_width=True, hide_index=True)
 
 with ledger_tab:
 	st.subheader("Filtered alert ledger")
 	alert_view = filtered.sort_values("final_score", ascending=False).copy()
 	alert_view["threat"] = alert_view.get("threats", pd.Series([["Normal"]]*len(alert_view), index=alert_view.index)).apply(lambda x: ", ".join(x) if isinstance(x, list) else str(x))
-	ledger_columns = [
+	ledger_columns = _select_existing_columns(
+		alert_view,
+		[
 		"user",
 		"final_score",
 		"iforest_score",
@@ -247,7 +359,12 @@ with ledger_tab:
 		"after_hours",
 		"large_email",
 		"recipient_count",
-	]
+		],
+	)
+	if not ledger_columns:
+		ledger_columns = _select_existing_columns(alert_view, ["user", "final_score", "decision", "threat"])
+	if not ledger_columns:
+		ledger_columns = list(alert_view.columns[:4])
 	st.dataframe(alert_view[ledger_columns], use_container_width=True, hide_index=True)
 
 	csv_data = alert_view[ledger_columns].to_csv(index=False).encode("utf-8")
