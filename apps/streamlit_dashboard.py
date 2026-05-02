@@ -118,6 +118,21 @@ G, edges = load_graph()
 st.title("Security Operations Center (SOC) Dashboard")
 st.caption("Real-time Insider Threat Detection and Response Platform")
 
+# Top-level product selector (main page, above inner nav)
+product = st.radio("Product", ["BCAS", "NSADM", "HEADS", "DEMF"], index=0, horizontal=True)
+
+# If a non-BCAS product is selected, show a placeholder page and stop.
+if product != "BCAS":
+    st.title(f"{product} Dashboard")
+    st.header(f"{product} — Placeholder Page")
+    st.write(
+        "This product page is under construction.\n\n" "BCAS retains the existing UI. Other products will have their own sidebars and inner navigation added later."
+    )
+    st.markdown("---")
+    st.info(f"{product} product selected — page under construction.")
+    _ = st.radio("Navigation", ["Overview"], index=0, horizontal=True)
+    st.stop()
+
 page = st.sidebar.radio(
     "NAVIGATION",
     [

@@ -187,11 +187,59 @@ def build_pipeline(path, _version=1):
 raw_df, features, result, model_outputs = build_pipeline(email_path)
 metrics = load_metrics_summary(metrics_path)
 
+# Top-level product nav (black text buttons)
+st.markdown(
+	"""
+<style>
+.product-nav { display: flex; gap: 14px; margin: 0 0 12px 0; }
+.product-nav button {
+	background: transparent !important;
+	border: none !important;
+	color: #000 !important;
+	font-weight: 600 !important;
+	padding: 0 !important;
+	margin: 0 !important;
+}
+.product-nav button:hover { text-decoration: underline; }
+.product-nav .active button { text-decoration: underline; }
+</style>
+""",
+	unsafe_allow_html=True,
+)
+
+if "product" not in st.session_state:
+	st.session_state["product"] = "BCAS"
+
+_names = ["BCAS", "NSADM", "HEADS", "DEMF"]
+_cols = st.columns(len(_names))
+for _i, _name in enumerate(_names):
+	active_class = "active" if st.session_state["product"] == _name else ""
+	with _cols[_i]:
+		st.markdown(f"<div class='product-nav {active_class}'>", unsafe_allow_html=True)
+		if st.button(_name, key=f"product_{_name}"):
+			st.session_state["product"] = _name
+		st.markdown("</div>", unsafe_allow_html=True)
+
+product = st.session_state["product"]
+
+if product != "BCAS":
+	st.markdown("---")
+	st.header(f"{product} Dashboard")
+	st.info("This product page is under construction. BCAS retains the existing UI. Other products will have their own sidebars and inner navigation added later.")
+	# render the same top tabs so user can navigate within the product (placeholders for now)
+	tab_names = ["Overview", "User drilldown", "Alert ledger", "Model evaluation", "Live log agent"]
+	tabs = st.tabs(tab_names)
+	for tname, tab in zip(tab_names, tabs):
+		with tab:
+			st.subheader(f"{product} — {tname}")
+			st.info("Placeholder content for this product and tab.")
+	st.stop()
+
 st.markdown(
 	"""
 	<div class="hero">
 		<h1>📧 Email Insider Threat Detection</h1>
-		
+        
 	</div>
 	""",
 	unsafe_allow_html=True,
