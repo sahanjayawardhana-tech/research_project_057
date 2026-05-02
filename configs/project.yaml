@@ -1,0 +1,28 @@
+project_name: HEADS_CERT_R42
+raw_root: data/raw/r4.2
+processed_root: data/processed
+artifacts_root: artifacts
+thresholds:
+  low: 0.35
+  medium: 0.60
+  high: 0.80
+windowing:
+  user_day: true
+  sequence_length: 32
+  sequence_step: 8
+data_loading:
+  row_limit:
+models:
+  transformer:
+    enabled: true
+    d_model: 64
+    nhead: 4
+    num_layers: 2
+  gnn:
+    enabled: true
+    hidden_dim: 64
+    num_layers: 2
+  xgboost:
+    enabled: true
+    n_estimators: 250
+    max_depth: 6
