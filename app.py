@@ -375,40 +375,25 @@ if "live_events" not in st.session_state:
 if "live_scores" not in st.session_state:
 	st.session_state.live_scores = pd.DataFrame()
 
-# Top-level product nav (black text buttons)
+# Top-level product selector for the two implemented projects.
 st.markdown(
 	"""
 <style>
-.product-nav { display: flex; gap: 14px; margin: 0 0 12px 0; }
-.product-nav button {
-	background: transparent !important;
-	border: none !important;
-	color: #000 !important;
-	font-weight: 600 !important;
-	padding: 0 !important;
-	margin: 0 !important;
+.product-switcher {
+	margin: 0 0 0.75rem 0;
 }
-.product-nav button:hover { text-decoration: underline; }
-.product-nav .active button { text-decoration: underline; }
 </style>
 """,
 	unsafe_allow_html=True,
 )
 
-if "product" not in st.session_state:
-	st.session_state["product"] = "DEMF"
-
-_names = ["BCAS", "NSADM", "HEADS", "DEMF"]
-_cols = st.columns(len(_names))
-for _i, _name in enumerate(_names):
-	active_class = "active" if st.session_state["product"] == _name else ""
-	with _cols[_i]:
-		st.markdown(f"<div class='product-nav {active_class}'>", unsafe_allow_html=True)
-		if st.button(_name, key=f"product_{_name}"):
-			st.session_state["product"] = _name
-		st.markdown("</div>", unsafe_allow_html=True)
-
-product = st.session_state["product"]
+product = st.radio(
+	"Project",
+	["BCAS", "DEMF"],
+	horizontal=True,
+	index=0,
+	key="product",
+)
 
 if product == "DEMF":
 	# ============= DEMF DASHBOARD =============

@@ -11,8 +11,7 @@ Files included:
 ### Option 1: PowerShell helper
 
 ```powershell
-.
-un_project.ps1
+.\run_project.ps1
 ```
 
 ### Option 2: manual setup
@@ -23,8 +22,7 @@ python -m venv .venv
 pip install -r requirements.txt
 streamlit run app_streamlit.py
 ```
-.\run_project.ps1
-> Note: `app_streamlit.py` now forwards to `app.py`, which contains the full multi-product dashboard with BCAS, NSADM, HEADS, and DEMF.
+> Note: `app_streamlit.py` now forwards to `app.py`, which contains the merged dashboard with BCAS and DEMF, selected from the top-level project switcher.
 
 ## What is fixed
 - safe charts when report files are empty or missing columns
