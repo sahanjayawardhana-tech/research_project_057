@@ -1,7 +1,7 @@
 data:
   raw_dir: "data/raw"
   model_dir: "models/current"
-  report_dir: "reports/current"
+  report_dir: "data/demo"
 
 privacy:
   hash_salt: "demo_salt_change_me"

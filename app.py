@@ -205,8 +205,14 @@ def build_pipeline(path, _version=1):
 	return raw, features, results, model_outputs
 
 
-raw_df, features, result, model_outputs = build_pipeline(email_path)
-metrics = load_metrics_summary(metrics_path)
+try:
+	raw_df, features, result, model_outputs = build_pipeline(email_path)
+	metrics = load_metrics_summary(metrics_path)
+except Exception as e:
+	import traceback
+	st.error(f"Error loading pipeline: {str(e)}")
+	st.write(traceback.format_exc())
+	st.stop()
 
 # ============= DEMF HELPER FUNCTIONS =============
 def _safe_read_csv(path: Path, parse_dates=None):
@@ -222,13 +228,13 @@ def _safe_read_json(path: Path):
 def _ensure_day(df: pd.DataFrame, col: str = "day"):
 	if col in df.columns:
 		df = df.copy()
-		df[col] = pd.to_datetime(df[col], errors="coerce")
+		df["day"] = pd.to_datetime(df[col], errors="coerce")
 	return df
 
 def _ensure_timestamp(df: pd.DataFrame, col: str = "timestamp"):
 	if col in df.columns:
 		df = df.copy()
-		df[col] = pd.to_datetime(df[col], errors="coerce")
+		df["timestamp"] = pd.to_datetime(df[col], errors="coerce")
 	return df
 
 def _nonempty(df: pd.DataFrame, cols: list):
@@ -248,10 +254,16 @@ def _domain(url: str):
 
 def _load_outputs(cfg: DEMFConfig, out=None):
 	if out is None:
-		scores = _ensure_day(_safe_read_csv(cfg.report_dir / "alerts.csv", parse_dates=["day"]), "day")
-		feats = _ensure_day(_safe_read_csv(cfg.report_dir / "features.csv", parse_dates=["day"]), "day")
-		events = _ensure_timestamp(_safe_read_csv(cfg.report_dir / "events_standardized.csv", parse_dates=["timestamp"]), "timestamp")
-		summary = _safe_read_json(cfg.report_dir / EVAL_SUMMARY_FILE)
+		scores = _ensure_day(_safe_read_csv(cfg.report_dir / "alerts.csv", parse_dates=["date_only"]), "date_only")
+		feats = _ensure_day(_safe_read_csv(cfg.report_dir / "user_day_features.csv", parse_dates=["date_only"]), "date_only")
+		events = _ensure_timestamp(_safe_read_csv(cfg.report_dir / "events.csv", parse_dates=["date_only"]), "date_only")
+		scores = scores.rename(columns={"user": "user_hash"})
+		feats = feats.rename(columns={"user": "user_hash"})
+		events = events.rename(columns={"user": "user_hash"})
+		if "alert" not in scores.columns:
+			scores["alert"] = scores.get("severity", "").isin(["critical", "high", "medium"])
+		scores = scores.rename(columns={"malicious_probability": "final_score"})
+		summary = _safe_read_json(cfg.report_dir / "model_metrics.json")
 		evaluation = None
 		if summary:
 			evaluation = {
@@ -384,7 +396,7 @@ st.markdown(
 )
 
 if "product" not in st.session_state:
-	st.session_state["product"] = "BCAS"
+	st.session_state["product"] = "DEMF"
 
 _names = ["BCAS", "NSADM", "HEADS", "DEMF"]
 _cols = st.columns(len(_names))
@@ -466,7 +478,30 @@ if product == "DEMF":
 	elif reload_btn:
 		out = None
 	
-	scores, feats, events, evaluation, meta = _load_outputs(cfg, out)
+	# Load or retrieve cached DEMF outputs
+	try:
+		scores, feats, events, evaluation, meta = _load_outputs(cfg, out)
+		# Cache in session state for persistence
+		st.session_state.demf_outputs = {
+			"scores": scores,
+			"feats": feats,
+			"events": events,
+			"evaluation": evaluation,
+			"meta": meta,
+		}
+	except Exception as e:
+		# Try to use cached outputs if loading fails
+		if "demf_outputs" in st.session_state:
+			cached = st.session_state.demf_outputs
+			scores = cached.get("scores", pd.DataFrame())
+			feats = cached.get("feats", pd.DataFrame())
+			events = cached.get("events", pd.DataFrame())
+			evaluation = cached.get("evaluation")
+			meta = cached.get("meta", {})
+		else:
+			st.error(f"Error loading DEMF data: {str(e)}")
+			st.stop()
+	
 	joined = _join(scores, feats)
 	threshold = _threshold_from_scores(scores) or meta.get("threshold")
 	

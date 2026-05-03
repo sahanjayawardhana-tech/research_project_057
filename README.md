@@ -8,13 +8,23 @@ Files included:
 
 ## Run
 
-```bash
+### Option 1: PowerShell helper
+
+```powershell
+.
+un_project.ps1
+```
+
+### Option 2: manual setup
+
+```powershell
 python -m venv .venv
-# Windows
-.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 streamlit run app_streamlit.py
 ```
+.\run_project.ps1
+> Note: `app_streamlit.py` now forwards to `app.py`, which contains the full multi-product dashboard with BCAS, NSADM, HEADS, and DEMF.
 
 ## What is fixed
 - safe charts when report files are empty or missing columns
